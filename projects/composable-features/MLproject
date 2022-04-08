@@ -1,0 +1,23 @@
+name: composable-features
+
+entry_points:
+    train-splitter:
+        command: "python -m unnested_representations.train_splitter"
+
+    train-splitter-rl:
+        command: "python -m unnested_representations.train_splitter_rl"
+
+    train-splitter-baseline:
+        command: "python -m unnested_representations.train_splitter_baseline"
+
+    train-entropy-baseline:
+        command: "python -m unnested_representations.train_entropy_baseline"
+
+    test-entropy-baseline:
+        command: "python -m unnested_representations.test_entropy_baseline"
+
+    test-splitter:
+        command: "python -m unnested_representations.test_splitter"
+
+    test-splitter-baseline:
+        command: "python -m unnested_representations.test_splitter_baseline"

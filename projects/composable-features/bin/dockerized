@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+docker run \
+    --interactive \
+    --rm \
+    --workdir "/${PACKAGE_NAME}" \
+    --volume "${PROJECT_DIR}:/${PACKAGE_NAME}" \
+    --volume "${POETRY_CACHE}:/root/.cache" \
+    --env POETRY_HTTP_BASIC_PRIVATE_USERNAME="${PYPI_USERNAME}" \
+    --env POETRY_HTTP_BASIC_PRIVATE_PASSWORD="${PYPI_PASSWORD}" \
+    ${BUILDER_IMAGE} \
+    "$(printf '%q ' "${@}")"

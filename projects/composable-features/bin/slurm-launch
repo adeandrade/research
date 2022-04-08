@@ -1,0 +1,127 @@
+#!/usr/bin/env -S poetry run python
+import io
+import os
+import subprocess
+from typing import Optional, List, Tuple
+
+import defopt
+
+
+class KeywordArguments(list, List[Tuple[str, str]]):
+    @classmethod
+    def from_string(cls, string: str) -> 'KeywordArguments':
+        return KeywordArguments([
+            (key.strip(), value)
+            for key, value
+            in (kwarg.split('=') for kwarg in string.split(','))
+        ])
+
+
+def run_command(*args: str, stdin: Optional[str] = None) -> str:
+    process = subprocess.Popen(
+        args,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        universal_newlines=True,
+    )
+
+    stdout, stderr = process.communicate(input=stdin)
+
+    if process.returncode != 0:
+        raise OSError(stderr)
+
+    response = stdout.strip()
+
+    return response
+
+
+def main(
+        experiment_name: str,
+        *,
+        entry_point: str = 'main',
+        version: str = run_command('git', 'rev-parse', 'HEAD'),
+        arguments: Optional[KeywordArguments] = None,
+        template_path: str = 'bin/slurm-templates/compute-canada.sh',
+        host: str = 'cedar',
+        directory: str = 'scratch',
+        account: str = 'def-ibajic',
+        cpus: int = 4,
+        memory: str = '8G',
+        gpu: str = 'gpu:1',
+        time: str = '1-0',
+) -> None:
+    """
+    Launches a Kubernetes Job that runs an MLFlow entry point.
+
+    :param experiment_name: The MLFlow experiment name.
+    :param entry_point: The name of the MLFlow entry point.
+    :param version: A commit hash, branch name or tag name, specifying the version of the code to run.
+    :param arguments: Comma-separated list of key=value arguments for the entry point.
+    :param template_path: Template launcher script.
+    :param host: Host to launch the job from.
+    :param directory: Directory where the command should be run.
+    :param account: Slurm account to use.
+    :param cpus:  Number of the CPUs for the job.
+    :param memory: Amount of memory for the job.
+    :param gpu: GPU specification for the job.
+    :param time: Maximum time allowed for the job to run.
+    """
+    arguments = arguments if arguments else KeywordArguments()
+
+    repository_url = run_command('git', 'config', '--get', 'remote.origin.url').replace(':', '/').split('@')[-1]
+    path = run_command('git', 'rev-parse', '--show-prefix').strip('/')
+
+    with io.open(os.path.join(os.getcwd(), template_path), mode='r') as script_file:
+        script = script_file.read()
+
+    job_name = f'{entry_point}-{version}'
+
+    job_arguments = [
+        f'https://{os.environ["GITHUB_TOKEN"]}@{repository_url}#{path}',
+        '--experiment-name', experiment_name,
+        '--entry-point', entry_point,
+        '--version', version,
+    ]
+    job_arguments += [
+        argument
+        for key, value in arguments
+        for argument in ('-P', f'{key}={value}')
+    ]
+    job_arguments = [f'"{argument}"' for argument in job_arguments]
+
+    job_definition = script.format(
+        account=account,
+        docker_username=os.environ['DOCKER_USERNAME'],
+        docker_password=os.environ['DOCKER_PASSWORD'],
+        mlflow_username=os.environ['MLFLOW_USERNAME'],
+        mlflow_password=os.environ['MLFLOW_PASSWORD'],
+        aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+        proxy_url=os.environ['PROXY_URL'],
+        slack_url=os.environ['SLACK_URL'],
+        slack_user=os.getenv('SLACK_USER', ''),
+        training_image=os.environ['TRAINING_IMAGE'],
+        job_arguments=' '.join(job_arguments),
+    )
+
+    command = [
+        'sbatch',
+        '--job-name', job_name,
+        '--account', account,
+        '--cpus-per-task', str(cpus),
+        '--mem', memory,
+        '--gres', gpu,
+        '--time', time,
+        '--signal', 'SIGTERM@300',
+    ]
+
+    print(run_command('ssh', host, f'(cd {directory} && {" ".join(command)})', stdin=job_definition))
+
+
+if __name__ == '__main__':
+    defopt.run(
+        funcs=main,
+        parsers={KeywordArguments: KeywordArguments.from_string},
+    )

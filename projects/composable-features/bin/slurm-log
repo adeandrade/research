@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+HOST="cedar"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--host) HOST=$2; shift;;
+        --debug) set -x;;
+        *) break;;
+    esac
+    shift
+done
+
+FILE="~/scratch/slurm-${1}.out"
+
+ssh -t "${HOST}" "while [[ ! -f ${FILE} ]]; do sleep 1; done && less +F ${FILE}"
