@@ -1,0 +1,236 @@
+#!/usr/bin/env -S poetry run python
+import io
+import os
+import re
+import subprocess
+from subprocess import Popen
+from typing import Optional, Dict
+
+import defopt
+import mlflow
+from mlflow.tracking import MlflowClient
+
+
+CLUSTERS = {
+    'cdr2687': 'cdr2687',
+}
+
+
+class KeywordArguments(dict, Dict[str, str]):
+    @classmethod
+    def from_string(cls, string: str) -> 'KeywordArguments':
+        return KeywordArguments({
+            key.strip().replace('_', '-'): value
+            for key, value in (
+                kwarg.split('=')
+                for kwarg in re.findall(r',?(.*?=.*?)(?=,[^,]*=|$)', string)
+            )
+        })
+
+
+def create_process(*args: str) -> Popen:
+    return Popen(
+        args,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        universal_newlines=True,
+    )
+
+
+def run_command(*args: str, stdin: Optional[str] = None) -> str:
+    process = create_process(*args)
+
+    stdout, stderr = process.communicate(input=stdin)
+
+    if process.returncode != 0:
+        raise OSError(stderr)
+
+    response = stdout.strip()
+
+    return response
+
+
+def create_run_id(
+        experiment_name: str,
+        user: str,
+        entry_point: str,
+        repository_url: str,
+        version: str,
+        branch: str,
+        path: str,
+        image: str,
+        run_name: Optional[str] = None,
+        note: Optional[str] = None,
+) -> str:
+
+    client = MlflowClient()
+
+    experiment = client.get_experiment_by_name(experiment_name)
+
+    if experiment is None:
+        raise ValueError(f'Experiment {experiment_name} does not exist.')
+
+    tags = {
+        'mlflow.user': user,
+        'mlflow.project.env': 'docker',
+        'mlflow.project.entryPoint': entry_point,
+        'mlflow.source.type': 'PROJECT',
+        'mlflow.source.name': f'https://{repository_url.removesuffix(".git")}#{path}',
+        'mlflow.source.git.commit': version,
+        'mlflow.source.git.branch': branch,
+        'mlflow.source.git.repoURL': repository_url,
+        'mlflow.docker.image.name': image,
+    }
+
+    if note is not None:
+        tags['mlflow.note.content'] = note
+
+    run = client.create_run(experiment.experiment_id, tags=tags, run_name=run_name)
+
+    run_id = run.info.run_id
+
+    return run_id
+
+
+def get_arguments(run_id: str) -> KeywordArguments:
+    return KeywordArguments({
+        key: str(value)
+        for key, value
+        in mlflow.get_run(run_id).data.params.items()
+        if value != 'None'
+    })
+
+
+def get_experiment_name(run_id: str) -> str:
+    return mlflow.get_experiment(mlflow.get_run(run_id).info.experiment_id).name
+
+
+def get_entry_point(run_id: str) -> str:
+    return mlflow.get_run(run_id).data.tags['mlflow.project.entryPoint']
+
+
+def get_version(run_id: str) -> str:
+    return mlflow.get_run(run_id).data.tags['mlflow.source.git.commit']
+
+
+def get_repository_url() -> str:
+    repository_url = run_command('git', 'config', '--get', 'remote.origin.url')
+
+    if repository_url.startswith('https://'):
+        repository_url = repository_url.removeprefix('https://')
+    else:
+        repository_url = repository_url.removeprefix('git@').replace(':', '/')
+
+    return repository_url
+
+
+def main(
+        *,
+        experiment_name: Optional[str] = None,
+        entry_point: Optional[str] = None,
+        version: Optional[str] = None,
+        run_id: Optional[str] = None,
+        arguments: Optional[KeywordArguments] = None,
+        run_name: Optional[str] = None,
+        note: Optional[str] = None,
+        development_mode: bool = False,
+        job_template_path: str = 'bin/templates/singularity.sh',
+        cluster: str = 'cdr2687',
+        num_gpus: int = 1,
+        directory: str = 'scratch',
+) -> None:
+    """
+    Launches a Kubernetes Job that runs an MLFlow entry point
+
+    :param experiment_name: The MLFlow experiment name
+    :param entry_point: The name of the MLFlow entry point
+    :param version: A commit hash, branch name or tag name, specifying the version of the code to run
+    :param run_id: MLFlow run ID to continue
+    :param arguments: Semicolon-separated list of key=value arguments for the entry point
+    :param run_name: Run name.
+    :param note: Note for the run.
+    :param development_mode: Whether to launch the job in development mode
+    :param job_template_path: Job template path
+    :param cluster: Label of the Slurm host and account to use
+    :param num_gpus: Number of GPUs to use for the job
+    :param directory: Directory where the command should be run
+    """
+    assert experiment_name or run_id
+    assert entry_point or run_id
+    assert arguments is None or 'run-id' not in arguments
+
+    arguments = arguments if arguments else get_arguments(run_id) if run_id else KeywordArguments()
+
+    experiment_name = experiment_name if experiment_name else get_experiment_name(run_id)
+    entry_point = entry_point if entry_point else get_entry_point(run_id)
+    version = run_command('git', 'rev-parse', version if version else get_version(run_id) if run_id else 'HEAD')
+
+    repository_url = get_repository_url()
+    path = run_command('git', 'rev-parse', '--show-prefix').strip('/')
+    branch = run_command('git', 'branch', '--show-current')
+
+    host = CLUSTERS[cluster]
+
+    with io.open(os.path.join(os.getcwd(), job_template_path), mode='r') as job_file:
+        job_template = job_file.read()
+
+    job_name = f'{entry_point}-{version}'
+
+    if not run_id:
+        run_id = create_run_id(
+            experiment_name=experiment_name,
+            user=os.environ['USER'],
+            entry_point=entry_point,
+            repository_url=repository_url,
+            version=version,
+            branch=branch,
+            path=path,
+            image=os.environ['TRAINING_IMAGE'],
+            run_name=run_name,
+            note=note,
+        )
+
+    arguments['run-id'] = run_id
+
+    job_arguments = [
+        f'"{argument}"' for argument in
+        [
+            f'https://{os.environ["GITHUB_TOKEN"]}@{repository_url}#{path}',
+            '--experiment-name', experiment_name,
+            '--entry-point', entry_point,
+            '--version', version,
+            '--run-id', run_id,
+        ] + [
+            argument
+            for key, value in arguments.items()
+            for argument in ('-P', f'{key}={value}')
+        ]
+    ]
+
+    job_definition = job_template.format(
+        job_name=job_name,
+        num_gpus=num_gpus,
+        docker_username=os.environ['DOCKER_USERNAME'],
+        docker_password=os.environ['DOCKER_PASSWORD'],
+        mlflow_username=os.environ['MLFLOW_TRACKING_USERNAME'],
+        mlflow_password=os.environ['MLFLOW_TRACKING_PASSWORD'],
+        aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+        proxy_url=os.environ['PROXY_URL'],
+        slack_url=os.environ['SLACK_URL'],
+        slack_user=os.getenv('SLACK_USER', ''),
+        training_image=os.environ['TRAINING_IMAGE'],
+        development_mode=development_mode,
+        job_arguments=' '.join(job_arguments),
+    )
+
+    print(run_command('ssh', host, f'(cd {directory} && bash -s)', stdin=job_definition))
+
+
+if __name__ == '__main__':
+    defopt.run(
+        funcs=main,
+        parsers={KeywordArguments: KeywordArguments.from_string},
+    )

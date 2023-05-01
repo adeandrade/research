@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+CLUSTER="cdr2687"
+
+if [ -n "${2}" ]; then
+	CLUSTER="${1}"
+	JOB_ID="${2}"
+else
+	JOB_ID="${1}"
+fi
+
+FILE="~/scratch/${JOB_ID}.out"
+
+ssh -t "${CLUSTER}" "while [[ ! -f ${FILE} ]]; do sleep 1; done && less +F ${FILE}"

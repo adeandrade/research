@@ -1,0 +1,51 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {name}
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: docker
+      volumes:
+        - name: datasets
+          persistentVolumeClaim:
+            claimName: datasets
+        - name: dshm
+          emptyDir:
+            medium: Memory
+      containers:
+      - name: {name}
+        image: {image}
+        imagePullPolicy: Always
+        args: {args}
+        envFrom:
+          - secretRef:
+              name: mlflow
+          - secretRef:
+              name: minio
+        env:
+          - name: MLFLOW_TRACKING_URI
+            value: https://mlflow.multimedialabsfu.xyz
+          - name: MLFLOW_S3_ENDPOINT_URL
+            value: https://io.multimedialabsfu.xyz
+          - name: S3_ENDPOINT_URL
+            value: https://io.multimedialabsfu.xyz
+          - name: DATA_PATH
+            value: /data
+          - name: SLACK_URL
+            value: {slack_url}
+          - name: SLACK_USER
+            value: {slack_user}
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        volumeMounts:
+          - name: datasets
+            mountPath: /data
+          - mountPath: /dev/shm
+            name: dshm

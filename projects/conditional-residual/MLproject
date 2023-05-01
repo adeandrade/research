@@ -1,0 +1,20 @@
+name: conditional-residual
+
+entry_points:
+    train-baseline-segmentation:
+        command: "python -m composable_features.train_baseline_segmentation"
+
+    train-baseline-detection:
+        command: "python -m composable_features.train_baseline_detection"
+
+    train-scalable-segmentation:
+        command: "python -m composable_features.train_scalable_segmentation"
+
+    train-structured-detection:
+        command: "python -m composable_features.train_structured_detection"
+
+    test-cityscapes:
+        command: "python -m composable_features.test_cityscapes"
+
+    test-coco:
+        command: "python -m composable_features.test_coco"
