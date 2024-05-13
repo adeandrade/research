@@ -1,0 +1,306 @@
+#!/usr/bin/env -S poetry run python
+import io
+import itertools
+import os
+import random
+import re
+import subprocess
+from subprocess import Popen
+from typing import Dict, List, Optional
+
+import defopt
+import mlflow
+from mlflow.tracking import MlflowClient
+
+
+class SSHConnection:
+    def __init__(self, server: str, interpreter: str = '/bin/bash') -> None:
+        self.server = server
+        self.interpreter = interpreter
+
+    @property
+    def ssh_command(self) -> List[str]:
+        return ['ssh', self.server, self.interpreter]
+
+    def __enter__(self):
+        self.pipe = Popen(
+            args=self.ssh_command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        assert self.pipe.stdin is not None and self.pipe.stdout is not None and self.pipe.stderr is not None
+
+        os.set_blocking(self.pipe.stderr.fileno(), False)
+
+        self.pipe.stdin.write('echo 0\n')
+        self.pipe.stdin.flush()
+
+        self.pipe.stdout.readline()
+        self.pipe.stderr.readlines()
+
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.pipe.terminate()
+
+    def run(self, command: str) -> None:
+        assert self.pipe.stdin is not None and self.pipe.stdout is not None and self.pipe.stderr is not None
+
+        self.pipe.stdin.write(f'{command}\necho $?\n')
+        self.pipe.stdin.flush()
+
+        while True:
+            line = self.pipe.stdout.readline().strip()
+
+            for error in self.pipe.stderr:
+                print(error.strip())
+
+            try:
+                return_code = int(line)
+
+                if return_code == 0:
+                    break
+
+                else:
+                    raise IOError(f'Error executing script with return code {return_code}')
+
+            except ValueError:
+                print(line)
+
+
+class KeywordArguments(dict, Dict[str, str]):
+    @classmethod
+    def from_string(cls, string: str) -> 'KeywordArguments':
+        return KeywordArguments({
+            key.strip().replace('_', '-'): value
+            for key, value in (
+                kwarg.split('=')
+                for kwarg in re.findall(r',?(.*?=.*?)(?=,[^,]*=|$)', string)
+            )
+        })
+
+
+class ArgumentSets(Dict[str, List[str]]):
+    @classmethod
+    def from_string(cls, string) -> 'ArgumentSets':
+        return ArgumentSets({
+            key: [value.strip() for value in value.split(',')]
+            for key, value
+            in KeywordArguments.from_string(string).items()
+        })
+
+
+def get_argument_combinations(arguments_sets: Dict[str, List[str]]) -> List[Dict[str, str]]:
+    return [
+        dict(zip(arguments_sets.keys(), combination))
+        for combination in itertools.product(*arguments_sets.values())
+    ]
+
+
+def run_command(command: str) -> str:
+    return subprocess.run(command.split(), capture_output=True, check=True, text=True).stdout.strip()
+
+
+def create_run_id(
+        experiment_name: str,
+        user: str,
+        entry_point: str,
+        repository_url: str,
+        version: str,
+        branch: str,
+        path: str,
+        image: str,
+        run_name: Optional[str] = None,
+        note: Optional[str] = None,
+) -> str:
+
+    client = MlflowClient()
+
+    experiment = client.get_experiment_by_name(experiment_name)
+
+    experiment_id = experiment.experiment_id if experiment else client.create_experiment(experiment_name)
+
+    tags = {
+        'mlflow.user': user,
+        'mlflow.project.env': 'docker',
+        'mlflow.project.entryPoint': entry_point,
+        'mlflow.source.type': 'PROJECT',
+        'mlflow.source.name': f'https://{repository_url.removesuffix(".git")}#{path}',
+        'mlflow.source.git.commit': version,
+        'mlflow.source.git.branch': branch,
+        'mlflow.source.git.repoURL': repository_url,
+        'mlflow.docker.image.name': image,
+    }
+
+    if note is not None:
+        tags['mlflow.note.content'] = note
+
+    run = client.create_run(experiment_id, tags=tags, run_name=run_name)
+
+    run_id = run.info.run_id
+
+    return run_id
+
+
+def get_arguments(run_id: str) -> KeywordArguments:
+    return KeywordArguments({
+        key: str(value)
+        for key, value
+        in mlflow.get_run(run_id).data.params.items()
+        if value != 'None'
+    })
+
+
+def get_experiment_name(run_id: str) -> str:
+    return mlflow.get_experiment(mlflow.get_run(run_id).info.experiment_id).name
+
+
+def get_entry_point(run_id: str) -> str:
+    return mlflow.get_run(run_id).data.tags['mlflow.project.entryPoint']
+
+
+def get_version(run_id: str) -> str:
+    return mlflow.get_run(run_id).data.tags['mlflow.source.git.commit']
+
+
+def get_repository_url() -> str:
+    repository_url = run_command('git config --get remote.origin.url')
+
+    if repository_url.startswith('https://'):
+        repository_url = repository_url.removeprefix('https://')
+    else:
+        repository_url = repository_url.removeprefix('git@').replace(':', '/')
+
+    return repository_url
+
+
+def main(
+        *,
+        experiment_name: Optional[str] = None,
+        entry_point: Optional[str] = None,
+        version: Optional[str] = None,
+        run_id: Optional[str] = None,
+        arguments: Optional[KeywordArguments] = None,
+        argument_sets: Optional[ArgumentSets] = None,
+        run_name: Optional[str] = None,
+        note: Optional[str] = None,
+        development_mode: bool = False,
+        job_template_path: str = 'bin/templates/apptainer.sh',
+        host: str = 'cedar2687',
+        num_gpus: int = 1,
+        directory: str = '~/scratch',
+) -> None:
+    """
+    Launches a Kubernetes Job that runs an MLFlow entry point
+
+    :param experiment_name: The MLFlow experiment name
+    :param entry_point: The name of the MLFlow entry point
+    :param version: A commit hash, branch name or tag name, specifying the version of the code to run
+    :param run_id: MLFlow run ID to continue
+    :param arguments: Semicolon-separated list of key=value arguments for the entry point
+    :param argument_sets: Semicolon-separated list of key=[value1,value2] arguments sets for the entry point
+    :param run_name: Run name
+    :param note: Note for the run
+    :param development_mode: Whether to launch the job in development mode
+    :param job_template_path: Job template path
+    :param host: Label of the host to use
+    :param num_gpus: Number of GPUs to use for the job
+    :param directory: Directory where the command should be run
+    """
+    assert experiment_name or run_id
+    assert entry_point or run_id
+    assert arguments is None or 'run-id' not in arguments
+
+    arguments = arguments or (get_arguments(run_id) if run_id else KeywordArguments())
+    argument_sets = argument_sets or ArgumentSets()
+
+    assert bool(argument_sets) and not bool(run_id) or not bool(argument_sets)
+
+    experiment_name = experiment_name or (get_experiment_name(run_id) if run_id else 'default')
+    entry_point = entry_point or (get_entry_point(run_id) if run_id else 'main')
+    version = version or (get_version(run_id) if run_id else 'HEAD')
+    version = run_command(f'git rev-parse {version}')
+
+    repository_url = get_repository_url()
+    path = run_command('git rev-parse --show-prefix').strip('/')
+    branch = run_command('git branch --show-current')
+
+    with io.open(os.path.join(os.getcwd(), job_template_path), mode='r') as job_file:
+        job_template = job_file.read()
+
+    argument_combinations = get_argument_combinations(argument_sets) or [{}]
+
+    with SSHConnection(host) as connection:
+        for argument_combination in argument_combinations:
+            job_name = f'{entry_point}-{version}-{random.getrandbits(32)}'
+
+            if argument_combination:
+                arguments_string = ', '.join((f'{key}={value}' for key, value in argument_combination.items()))
+                print(f'Launching argument combination: {arguments_string}')
+
+            if not run_id or bool(argument_sets):
+                run_id = create_run_id(
+                    experiment_name=experiment_name,
+                    user=os.environ['USER'],
+                    entry_point=entry_point,
+                    repository_url=repository_url,
+                    version=version,
+                    branch=branch,
+                    path=path,
+                    image=os.environ['TRAINING_IMAGE'],
+                    run_name=run_name,
+                    note=note,
+                )
+
+            arguments['run-id'] = run_id
+
+            job_arguments = [
+                f'"{argument}"' for argument in
+                [
+                    f'https://{os.environ["GITHUB_TOKEN"]}@{repository_url}#{path}',
+                    '--experiment-name', experiment_name,
+                    '--entry-point', entry_point,
+                    '--version', version,
+                    '--run-id', run_id,
+                ] + [
+                    argument
+                    for key, value in (arguments | argument_combination).items()
+                    for argument in ('-P', f'{key}={value}')
+                ]
+            ]
+
+            job_definition = job_template.format(
+                directory=directory,
+                job_name=job_name,
+                num_gpus=num_gpus,
+                docker_username=os.environ['DOCKER_USERNAME'],
+                docker_password=os.environ['DOCKER_PASSWORD'],
+                mlflow_tracking_uri=os.environ['MLFLOW_TRACKING_URI'],
+                mlflow_username=os.environ['MLFLOW_TRACKING_USERNAME'],
+                mlflow_password=os.environ['MLFLOW_TRACKING_PASSWORD'],
+                mlflow_s3_endpoint_url=os.environ['MLFLOW_S3_ENDPOINT_URL'],
+                s3_endpoint_url=os.environ['S3_ENDPOINT_URL'],
+                aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+                aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+                proxy_url=os.environ['PROXY_URL'],
+                slack_url=os.environ['SLACK_URL'],
+                slack_user=os.getenv('SLACK_USER', ''),
+                training_image=os.environ['TRAINING_IMAGE'],
+                development_mode=development_mode,
+                job_arguments=' '.join(job_arguments),
+            )
+
+            connection.run(job_definition)
+
+
+if __name__ == '__main__':
+    defopt.run(
+        funcs=main,
+        parsers={
+            KeywordArguments: KeywordArguments.from_string,
+            ArgumentSets: ArgumentSets.from_string,
+        },
+    )

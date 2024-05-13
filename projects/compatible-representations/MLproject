@@ -1,0 +1,14 @@
+name: compatible-representations
+
+entry_points:
+    train-depth:
+        command: "python -m compatible_representations.train_depth"
+
+    train-detection:
+        command: "python -m compatible_representations.train_detection"
+
+    train-reconstruction:
+        command: "python -m compatible_representations.train_reconstruction"
+
+    train-segmentation:
+        command: "python -m compatible_representations.train_segmentation"

@@ -1,0 +1,55 @@
+[tool.poetry]
+name = "compatible-representations"
+version = "0.0.1rc0"
+description = "Compatible representations for multi-task learning."
+authors = ["Anderson de Andrade <anderson_de_andrade@sfu.ca>"]
+
+[tool.poetry.dependencies]
+python = "3.11.7"
+compressai = "1.2.6"
+defopt = "6.4.0"
+matplotlib = "*"
+matplotlib-scalebar = "0.8.1"
+matplotlib-venn = "0.11.9"
+mlflow-skinny = "2.11.1"
+nuscenes-devkit = "1.1.11"
+numba = "0.59.0"
+numpy = "1.26.4"
+palettable = "3.3.3"
+pillow = "10.2.0"
+pooch = "1.8.0"
+pycocotools = "2.0.7"
+pyarrow = "15.0.1"
+pytorch-lightning = "2.2.1"
+scikit-image = "0.22.0"
+scipy = "1.12.0"
+seaborn = "0.13.2"
+sfu-torch-lib = "0.0.44"
+torch = "2.2.1"
+
+[tool.poetry.extras]
+extras = []
+
+[tool.poetry.dev-dependencies]
+defopt = "*"
+ruff = "*"
+basedpyright = "*"
+pytest = "*"
+
+[tool.ruff]
+line-length = 120
+preview = true
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.pyright]
+typeCheckingMode = "basic"
+
+[tool.isort]
+line_length = 120
+multi_line_output = 9
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
