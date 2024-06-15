@@ -12,18 +12,17 @@ from torch.utils.data import DataLoader
 
 import conditional_residual.processing_coco as processing
 from conditional_residual.dataset_coco import COCO
-from conditional_residual.model_baselines import Detection
 
 
 @slack.notify
 @mlflow.install
 def train(
-        *,
-        model_type: Optional[str] = None,
-        run_id_pretrained: Optional[str] = None,
-        run_id: Optional[str] = None,
-        dataset_path: str = 's3://datasets/coco-2017.zip',
-        split: str = 'validation',
+    *,
+    run_id_pretrained: str,
+    model_type: str,
+    run_id: Optional[str] = None,
+    dataset_path: str = 's3://datasets/coco-2017.zip',
+    split: str = 'validation',
 ) -> None:
     """
     Evaluates a model.
@@ -39,16 +38,9 @@ def train(
     transform = processing.create_test_transformer()
     dataset = COCO(dataset_path, transform, split=split)
 
-    if run_id_pretrained:
-        module_name, class_name = model_type.rsplit('.', maxsplit=1)
-        model_class = getattr(importlib.import_module(module_name), class_name)
-        model = state.load_model(run_id_pretrained, model_class)
-
-    else:
-        model = Detection(
-            num_classes=COCO.num_classes_detection,
-            learning_rate=0.,
-        )
+    module_name, class_name = model_type.rsplit('.', maxsplit=1)
+    model_class = getattr(importlib.import_module(module_name), class_name)
+    model = state.load_model(run_id_pretrained, model_class)
 
     logger = MLFlowLogger(tags={'model': model.__class__.__name__, 'dataset': COCO.__name__})
 

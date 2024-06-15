@@ -2,16 +2,17 @@
 
 launch_job(){{
 	if [[ -n "${{PID}}" ]]; then
-		kill -INT "$(pgrep -P "$(pgrep -P "${{PID}}")")"
+		kill -INT "$(pgrep -P "$(pgrep -P "${{PID}}" mlflow)")"
 		wait "${{PID}}"
+		echo "Task terminated gracefully."
 	fi
 
 	sbatch \
 		--job-name {job_name} \
-		--account {account_id} \
+		--account {account} \
 		--cpus-per-task {cpus} \
 		--mem {memory} \
-		--gpus-per-node {gpu} \
+		--gpus-per-node {gpus} \
 		--time {time} \
 		--signal {signal} \
 		<<- EOM
@@ -20,35 +21,35 @@ launch_job(){{
 			$(type launch_job | sed '1d')
 			trap launch_job USR1
 
-			module load singularity
+			module load apptainer
 
 			mkdir -p "/scratch/\${{USER}}/data"
 			mkdir -p "\${{SLURM_TMPDIR}}/data"
-			mkdir -p "\${{SLURM_TMPDIR}}/singularity/"{{tmp,workdir,home}}
+			mkdir -p "\${{SLURM_TMPDIR}}/apptainer/"{{tmp,workdir,home}}
 
 			export HTTP_PROXY="{proxy_url}"
 			export HTTPS_PROXY="{proxy_url}"
-			export SINGULARITY_DOCKER_USERNAME="{docker_username}"
-			export SINGULARITY_DOCKER_PASSWORD="{docker_password}"
-			export SINGULARITY_CACHEDIR="/scratch/${{USER}}/singularity"
-			export SINGULARITY_TMPDIR="\${{SLURM_TMPDIR}}/singularity/tmp"
+			export APPTAINER_DOCKER_USERNAME="{docker_username}"
+			export APPTAINER_DOCKER_PASSWORD="{docker_password}"
+			export APPTAINER_CACHEDIR="/scratch/${{USER}}/apptainer"
+			export APPTAINER_TMPDIR="\${{SLURM_TMPDIR}}/apptainer/tmp"
 
-			singularity \
+			apptainer \
 				run \
 				--contain \
 				--cleanenv \
 				--nv \
-				--workdir "\${{SLURM_TMPDIR}}/singularity/workdir" \
-				--home "\${{SLURM_TMPDIR}}/singularity/home" \
+				--workdir "\${{SLURM_TMPDIR}}/apptainer/workdir" \
+				--home "\${{SLURM_TMPDIR}}/apptainer/home" \
 				--bind "/scratch/\${{USER}}/data":/data-remote \
 				--bind "\${{SLURM_TMPDIR}}/data":/data-local \
-				--env MLFLOW_TRACKING_URI="https://mlflow.multimedialabsfu.xyz" \
+				--env MLFLOW_TRACKING_URI="{mlflow_tracking_uri}" \
 				--env MLFLOW_TRACKING_USERNAME="{mlflow_username}" \
 				--env MLFLOW_TRACKING_PASSWORD="{mlflow_password}" \
-				--env MLFLOW_S3_ENDPOINT_URL="https://io.multimedialabsfu.xyz" \
+				--env MLFLOW_S3_ENDPOINT_URL="{s3_endpoint_url}" \
+				--env S3_ENDPOINT_URL="{s3_endpoint_url}" \
 				--env AWS_ACCESS_KEY_ID="{aws_access_key_id}" \
 				--env AWS_SECRET_ACCESS_KEY="{aws_secret_access_key}" \
-				--env S3_ENDPOINT_URL="https://io.multimedialabsfu.xyz" \
 				--env DATA_PATH="/data-remote" \
 				--env DATA_EPHEMERAL_PATH="/data-local" \
 				--env SLACK_URL="{slack_url}" \
@@ -67,4 +68,4 @@ launch_job(){{
 		EOM
 }}
 
-launch_job
+cd {directory} && launch_job

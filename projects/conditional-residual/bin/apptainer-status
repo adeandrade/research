@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-CLUSTER="${1:-cdr2687}"
+CLUSTER="${1:-cedar2687}"
 
 ssh "${CLUSTER}" find /tmp -maxdepth 1 -type d -user "\${USER}" -printf '%f\\n' | grep -v '^ssh'

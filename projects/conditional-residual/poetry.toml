@@ -1,5 +1,7 @@
 [repositories]
-[repositories.private]
-url = "https://pypi.org/simple"
 [repositories.private-upload]
 url = "https://upload.pypi.org/legacy/"
+
+[virtualenvs]
+create = true
+in-project = true

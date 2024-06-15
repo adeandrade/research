@@ -2,6 +2,7 @@
 import io
 import itertools
 import os
+import random
 import re
 import subprocess
 from subprocess import Popen
@@ -70,7 +71,7 @@ class SSHConnection:
                 print(line)
 
 
-class KeywordArguments(Dict[str, str]):
+class KeywordArguments(dict, Dict[str, str]):
     @classmethod
     def from_string(cls, string: str) -> 'KeywordArguments':
         return KeywordArguments({
@@ -146,10 +147,10 @@ def create_run_id(
 
 def get_arguments(run_id: str) -> KeywordArguments:
     return KeywordArguments({
-        key: value
+        key: str(value)
         for key, value
         in mlflow.get_run(run_id).data.params.items()
-        if value != 'None' and not value.startswith('[') and not value.startswith('(')
+        if value != 'None'
     })
 
 
@@ -187,15 +188,10 @@ def main(
         run_name: Optional[str] = None,
         note: Optional[str] = None,
         development_mode: bool = False,
-        job_template_path: str = 'bin/templates/slurm.sh',
-        cluster: str = 'cedar',
-        cpus: int = 6,
-        account: Optional[str] = None,
-        memory: str = '32G',
-        gpus: str = '1',
-        time: str = '1-0',
+        job_template_path: str = 'bin/templates/apptainer.sh',
+        host: str = 'cedar2687',
+        num_gpus: int = 1,
         directory: str = '~/scratch',
-        signal: str = 'B:USR1@300',
 ) -> None:
     """
     Launches a Kubernetes Job that runs an MLFlow entry point
@@ -210,14 +206,9 @@ def main(
     :param note: Note for the run
     :param development_mode: Whether to launch the job in development mode
     :param job_template_path: Job template path
-    :param cluster: Label of the Slurm host and account to use
-    :param account: Account ID for Slurm.
-    :param cpus:  Number of the CPUs for the job
-    :param memory: Amount of memory for the job
-    :param gpus: GPU specification for the job
-    :param time: Maximum time allowed for the job to run
+    :param host: Label of the host to use
+    :param num_gpus: Number of GPUs to use for the job
     :param directory: Directory where the command should be run
-    :param signal: Process signal to send to the job before it is terminated
     """
     assert experiment_name or run_id
     assert entry_point or run_id
@@ -233,8 +224,6 @@ def main(
     version = version or (get_version(run_id) if run_id else 'HEAD')
     version = run_command(f'git rev-parse {version}')
 
-    account = account or os.environ['DEFAULT_SLURM_ACCOUNT']
-
     repository_url = get_repository_url()
     path = run_command('git rev-parse --show-prefix').strip('/')
     branch = run_command('git branch --show-current')
@@ -242,12 +231,12 @@ def main(
     with io.open(os.path.join(os.getcwd(), job_template_path), mode='r') as job_file:
         job_template = job_file.read()
 
-    job_name = f'{entry_point}-{version}'
-
     argument_combinations = get_argument_combinations(argument_sets) or [{}]
 
-    with SSHConnection(cluster) as connection:
+    with SSHConnection(host) as connection:
         for argument_combination in argument_combinations:
+            job_name = f'{entry_point}-{version}-{random.getrandbits(32)}'
+
             if argument_combination:
                 arguments_string = ', '.join((f'{key}={value}' for key, value in argument_combination.items()))
                 print(f'Launching argument combination: {arguments_string}')
@@ -285,13 +274,8 @@ def main(
 
             job_definition = job_template.format(
                 directory=directory,
-                account=account,
                 job_name=job_name,
-                cpus=cpus,
-                memory=memory,
-                gpus=gpus,
-                time=time,
-                signal=signal,
+                num_gpus=num_gpus,
                 docker_username=os.environ['DOCKER_USERNAME'],
                 docker_password=os.environ['DOCKER_PASSWORD'],
                 mlflow_tracking_uri=os.environ['MLFLOW_TRACKING_URI'],

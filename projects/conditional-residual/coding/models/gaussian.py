@@ -17,19 +17,18 @@ from coding.normal import SCALE_MIN, TAIL_MASS
 
 class GaussianEntropyModel(Module, EntropyModel):
     def __init__(
-            self,
-            num_channels: int,
-            num_layers: int = 5,
-            multiplier: int = 1,
-            kernel_size: int = 5,
-            in_group_size: int = 1,
-            pre_group_size: int = 1,
-            prefix_size: int = 0,
-            order: int = -1,
-            scale_lower_bound: float = SCALE_MIN,
-            tail_mass: float = TAIL_MASS,
+        self,
+        num_channels: int,
+        num_layers: int = 5,
+        multiplier: int = 1,
+        kernel_size: int = 5,
+        in_group_size: int = 1,
+        pre_group_size: int = 1,
+        prefix_size: int = 0,
+        order: int = -1,
+        scale_lower_bound: float = SCALE_MIN,
+        tail_mass: float = TAIL_MASS,
     ) -> None:
-
         assert num_channels % pre_group_size == 0
 
         super().__init__()
@@ -97,17 +96,19 @@ class GaussianEntropyModel(Module, EntropyModel):
         return inputs_quantized, likelihoods
 
     def collect_parameters(self) -> NetworkParameters:
-        parameters = [(
-            functions.to_numpy(self.pdf_parameters[0].weight * self.pdf_parameters[0].mask),
-            functions.to_numpy(self.pdf_parameters[0].bias),
-            functions.to_numpy(torch.ones_like(self.pdf_parameters[0].bias)),
-            -1,
-            self.pdf_parameters[0].in_group_size,
-            self.pdf_parameters[0].out_group_size,
-            self.pdf_parameters[0].in_prefix_size,
-            self.pdf_parameters[0].out_prefix_size,
-            False,
-        )]
+        parameters = [
+            (
+                functions.to_numpy(self.pdf_parameters[0].weight * self.pdf_parameters[0].mask),
+                functions.to_numpy(self.pdf_parameters[0].bias),
+                functions.to_numpy(torch.ones_like(self.pdf_parameters[0].bias)),
+                -1,
+                self.pdf_parameters[0].in_group_size,
+                self.pdf_parameters[0].out_group_size,
+                self.pdf_parameters[0].in_prefix_size,
+                self.pdf_parameters[0].out_prefix_size,
+                False,
+            )
+        ]
 
         layer_index = 0
 
@@ -151,13 +152,14 @@ class GaussianEntropyModel(Module, EntropyModel):
         return parameters
 
     def update_coder_parameters(self, force: bool = False) -> None:
-        if not force \
-                and self.scale_table is not None \
-                and self.cdfs is not None \
-                and self.cdf_sizes is not None \
-                and self.offsets is not None \
-                and self.coder_parameters is not None:
-
+        if (
+            not force
+            and self.scale_table is not None
+            and self.cdfs is not None
+            and self.cdf_sizes is not None
+            and self.offsets is not None
+            and self.coder_parameters is not None
+        ):
             return
 
         self.scale_table = normal.get_scale_table(self.scale_lower_bound)
@@ -210,10 +212,7 @@ class GaussianEntropyModel(Module, EntropyModel):
         parameter = next(self.parameters())
 
         batch = torch.stack(
-            tensors=[
-                torch.tensor(tensor, dtype=parameter.dtype, device=parameter.device)
-                for tensor in tensors
-            ],
+            tensors=[torch.tensor(tensor, dtype=parameter.dtype, device=parameter.device) for tensor in tensors],
             dim=0,
         )
 
@@ -225,21 +224,20 @@ class GaussianEntropyModel(Module, EntropyModel):
 
 class GaussianConditionalEntropyModel(Module, ConditionalEntropyModel):
     def __init__(
-            self,
-            num_channels: int,
-            num_channels_conditional: int,
-            num_channels_conditional_expansion: int = 128,
-            num_layers: int = 5,
-            num_layers_conditional: int = 2,
-            multiplier: int = 1,
-            kernel_size: int = 5,
-            in_group_size: int = 1,
-            pre_group_size: int = 1,
-            order: int = -1,
-            scale_lower_bound: float = SCALE_MIN,
-            tail_mass: float = TAIL_MASS,
+        self,
+        num_channels: int,
+        num_channels_conditional: int,
+        num_channels_conditional_expansion: int = 128,
+        num_layers: int = 5,
+        num_layers_conditional: int = 2,
+        multiplier: int = 1,
+        kernel_size: int = 5,
+        in_group_size: int = 1,
+        pre_group_size: int = 1,
+        order: int = -1,
+        scale_lower_bound: float = SCALE_MIN,
+        tail_mass: float = TAIL_MASS,
     ) -> None:
-
         super().__init__()
 
         self.gaussian_entropy_model = GaussianEntropyModel(
@@ -325,10 +323,7 @@ class GaussianConditionalEntropyModel(Module, ConditionalEntropyModel):
         parameter = next(self.parameters())
 
         batch = torch.stack(
-            tensors=[
-                torch.tensor(tensor, dtype=parameter.dtype, device=parameter.device)
-                for tensor in tensors
-            ],
+            tensors=[torch.tensor(tensor, dtype=parameter.dtype, device=parameter.device) for tensor in tensors],
             dim=0,
         )
 

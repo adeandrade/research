@@ -1,14 +1,14 @@
-.PHONY: flake8 mypy test lint
+.PHONY: format type-check test lint
 
-## run flake8 formatting
-flake8: ${BUILDER_IMAGE_TASK}
+## run linter
+format: ${BUILDER_IMAGE_TASK}
 	@echo "Linting format..."
-	@${DOCKERIZED_CMD} poetry run flake8 .
+	@${DOCKERIZED_CMD} poetry run ruff check --fix .
 
-## run mypy type checking
-mypy: ${BUILDER_IMAGE_TASK}
+## run type checker
+type-check: ${BUILDER_IMAGE_TASK}
 	@echo "Checking types..."
-	@${DOCKERIZED_CMD} poetry run mypy --install-types --non-interactive .
+	@${DOCKERIZED_CMD} poetry run basedpyright
 
 ## run pytest
 test: ${BUILDER_IMAGE_TASK} install
@@ -16,4 +16,4 @@ test: ${BUILDER_IMAGE_TASK} install
 	@${DOCKERIZED_CMD} poetry run pytest tests/
 
 ## run all linting tools
-lint: flake8 mypy
+lint: format type-check

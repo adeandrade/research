@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-CLUSTER="cdr2687"
+CLUSTER="cedar2687"
 
 if [ -n "${2}" ]; then
 	CLUSTER="${1}"

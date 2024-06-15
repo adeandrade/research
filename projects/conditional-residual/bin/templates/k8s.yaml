@@ -30,17 +30,19 @@ spec:
               name: minio
         env:
           - name: MLFLOW_TRACKING_URI
-            value: https://mlflow.multimedialabsfu.xyz
+            value: {mlflow_tracking_uri}
           - name: MLFLOW_S3_ENDPOINT_URL
-            value: https://io.multimedialabsfu.xyz
+            value: {s3_endpoint_url}
           - name: S3_ENDPOINT_URL
-            value: https://io.multimedialabsfu.xyz
+            value: {s3_endpoint_url}
           - name: DATA_PATH
             value: /data
           - name: SLACK_URL
             value: {slack_url}
           - name: SLACK_USER
             value: {slack_user}
+          - name: DEVELOPMENT_MODE
+            value: "{development_mode}"
         resources:
           limits:
             nvidia.com/gpu: 1
