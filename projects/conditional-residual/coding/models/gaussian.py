@@ -68,17 +68,6 @@ class GaussianEntropyModel(Module, EntropyModel):
                 )
                 for _ in range(num_layers)
             ],
-            MaskedConv2d(
-                in_channels=2 * num_channels,
-                out_channels=2 * num_channels,
-                kernel_size=(kernel_size, kernel_size),
-                in_group_size=2 * pre_group_size,
-                out_group_size=2 * pre_group_size,
-                in_prefix_size=prefix_size,
-                out_prefix_size=0,
-                order=order,
-                include_target=True,
-            ),
         )
 
         self.scale_table, self.cdfs, self.cdf_sizes, self.offsets, self.coder_parameters = None, None, None, None, None
