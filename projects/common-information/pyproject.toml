@@ -1,0 +1,79 @@
+[project]
+name = "common-information"
+version = "0.0.1rc0"
+description = "Learn representations posessing the common information between unnested tasks."
+requires-python = "==3.12.7"
+authors = [
+  { name = "Anderson de Andrade", email = "anderson_de_andrade@sfu.ca" },
+]
+
+[tool.poetry]
+packages = [{ include = "common_information" }, { include = "deeplabv3plus" }]
+
+[tool.poetry.dependencies]
+compressai = "1.2.6"
+defopt = "7.0.0"
+matplotlib = "*"
+mlflow-skinny = "3.3.2"
+numba = "0.61.2"
+numpy = "*"
+pillow = "11.2.1"
+pycocotools = "2.0.8"
+pytorch-lightning = "2.5.4"
+scipy = "1.15.3"
+seaborn = "0.13.2"
+sfu-torch-lib = "0.0.57"
+torch = "2.6.0"
+torchvision = "*"
+torchmetrics = "*"
+
+[tool.poetry.extras]
+extras = []
+
+[tool.poetry.group.dev.dependencies]
+defopt = "*"
+ruff = "*"
+basedpyright = "*"
+pytest = "*"
+
+[project.scripts]
+prepare-discrete-dataset = "common_information.prepare_discrete_dataset:main"
+analyze-rate-distortion = "common_information.analyze_rate_distortion:main"
+analyze-rate-distortion-ci = "common_information.analyze_rate_distortion_ci:main"
+analyze-mnist-reconstruction = "common_information.analyze_mnist_reconstruction:main"
+calculate-rate-distortion = "common_information.calculate_rate_distortion:main"
+train-segmentation = "common_information.train_segmentation:main"
+train-depth = "common_information.train_depth:main"
+train-joint-discrete = "common_information.train_joint_discrete:main"
+train-joint-cityscapes = "common_information.train_joint_cityscapes:main"
+train-joint-coco = "common_information.train_joint_coco:main"
+
+[[tool.poetry.source]]
+name = "private-upload"
+url = "https://upload.pypi.org/legacy/"
+priority = "supplemental"
+
+[tool.ruff]
+line-length = 120
+unsafe-fixes = true
+fix = true
+exclude = ["deeplabv3plus"]
+
+[tool.ruff.lint]
+preview = true
+
+[tool.ruff.format]
+preview = true
+quote-style = "single"
+
+[tool.basedpyright]
+typeCheckingMode = "basic"
+exclude = ["**/.*", "deeplabv3plus"]
+
+[tool.isort]
+line_length = 120
+multi_line_output = 9
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

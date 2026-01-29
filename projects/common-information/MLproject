@@ -1,0 +1,20 @@
+name: common-information
+
+entry_points:
+    train-depth:
+        command: "python -m common_information.train_depth"
+
+    train-segmentation:
+        command: "python -m common_information.train_segmentation"
+
+    train-joint-cityscapes:
+        command: "python -m common_information.train_joint_cityscapes"
+
+    train-joint-coco:
+        command: "python -m common_information.train_joint_coco"
+
+    train-joint-discrete:
+        command: "python -m common_information.train_joint_discrete"
+
+    train-joint-mnist:
+        command: "python -m common_information.train_joint_mnist"
