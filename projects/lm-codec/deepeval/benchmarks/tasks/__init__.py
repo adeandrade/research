@@ -1,0 +1,10 @@
+from ..big_bench_hard.big_bench_hard import BigBenchHardTask as BigBenchHardTask
+from ..hellaswag.hellaswag import HellaSwagTask as HellaSwagTask
+from ..mmlu.mmlu import MMLUTask as MMLUTask
+from ..truthful_qa.truthful_qa import TruthfulQATask as TruthfulQATask
+from ..human_eval.human_eval import HumanEvalTask as HumanEvalTask
+from ..drop.drop import DROPTask as DROPTask
+from ..squad.squad import SQuADTask as SQuADTask
+from ..math_qa.math_qa import MathQATask as MathQATask
+from ..logi_qa.logi_qa import LogiQATask as LogiQATask
+from ..bbq.bbq import BBQTask as BBQTask

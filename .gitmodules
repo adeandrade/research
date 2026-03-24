@@ -1,0 +1,3 @@
+[submodule "projects/lm-codec/torch_ans"]
+	path = projects/lm-codec/torch_ans
+	url = https://github.com/adeandrade/torch_ans.git

@@ -1,0 +1,38 @@
+name: lm-codec
+
+entry_points:
+    train:
+        command: "python -m lm_codec.train"
+
+    test:
+        command: "python -m lm_codec.test"
+
+    evaluate:
+        command: "python -m lm_codec.evaluate"
+
+    analyze-spectral:
+        command: "python -m lm_codec.analyze_spectral"
+
+    analyze-spectral-analysis:
+        command: "python -m lm_codec.analyze_spectral_analysis"
+
+    analyze-rademacher:
+        command: "python -m lm_codec.analyze_rademacher"
+
+    analyze-time-complexity:
+        command: "python -m lm_codec.analyze_time_complexity"
+
+    analyze-zip:
+        command: "python -m lm_codec.analyze_zip"
+
+    analyze-zstd:
+        command: "python -m lm_codec.analyze_zstd"
+
+    train-image:
+        command: "python -m image_codec.train"
+
+    analyze-image-spectral:
+        command: "python -m image_codec.analyze_spectral"
+
+    analyze-image-rademacher:
+        command: "python -m image_codec.analyze_rademacher"

@@ -1,0 +1,39 @@
+#!/usr/bin/env -S poetry run python
+import os
+import subprocess
+from pathlib import Path
+
+
+def run_command(command: str) -> str:
+    return subprocess.run(command.split(), capture_output=True, check=True, text=True).stdout.strip()
+
+
+def get_repository_url() -> str:
+    repository_url = run_command('git config --get remote.origin.url')
+
+    if repository_url.startswith('https://'):
+        repository_url = repository_url.removeprefix('https://')
+    else:
+        repository_url = repository_url.removeprefix('git@').replace(':', '/')
+
+    return repository_url
+
+
+def main() -> None:
+    repository_url = get_repository_url()
+    directory = Path(repository_url).stem
+    path = run_command('git rev-parse --show-prefix').strip('/')
+    branch = run_command('git branch --show-current')
+
+    commands = [
+        f'git clone --depth 1 --sparse https://{os.environ["GITHUB_TOKEN"]}@{repository_url} --branch {branch}',
+        f'cd {directory}',
+        f'git sparse-checkout set {path}/',
+        f'cd {path}',
+    ]
+
+    print(' && '.join(commands))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,115 @@
+[build-system]
+requires = ["uv_build <0.12"]
+build-backend = "uv_build"
+
+[project]
+name = "lm-codec"
+version = "0.0.1rc0"
+description = "Codec for language models."
+authors = [
+  { name = "Anderson de Andrade", email = "anderson_de_andrade@sfu.ca" },
+]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = "==3.13.*"
+dependencies = [
+  "anthropic ==0.49.0",
+  "datasets ==4.7.0",
+  "defopt ==7.0.0",
+  "google-genai ==1.15.0",
+  "jsonargparse ==4.38.0",
+  "mlflow-skinny ==3.10.1",
+  "nest_asyncio",
+  "numba ==0.64.0",
+  "numpy",
+  "nvidia-nvcomp-cu12 ==5.1.0.21",
+  "ollama ==0.4.8",
+  "openai ==1.79.0",
+  "opentelemetry-api ==1.33.1",
+  "opentelemetry-sdk ==1.33.1",
+  "opentelemetry-exporter-otlp-proto-grpc ==1.33.1",
+  "portalocker ==3.1.1",
+  "posthog ==3.25.0",
+  "pytorch-lightning ==2.6.1",
+  "lightning",
+  "hf-transfer ==0.1.9",
+  "docstring_parser ==0.16",
+  "rich ==13.9.4",
+  "scipy ==1.17.1",
+  "seaborn ==0.13.2",
+  "sentry-sdk ==2.28.0",
+  "sfu-torch-lib ==0.0.62",
+  "tenacity ==9.0.0",
+  "tiktoken ==0.12.0",
+  "torch ==2.10.0",
+  "torchmetrics",
+  "transformers ==4.50.2",
+  "zstd ==1.5.7.3",
+]
+
+[dependency-groups]
+dev = ["defopt", "ruff", "basedpyright", "pytest", "mlflow-skinny"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = ["coding", "deepeval", "image_codec", "litgpt", "lm_codec"]
+
+[project.scripts]
+lm-codec-train = "lm_codec.train:main"
+lm-codec-analyze-rademacher = "lm_codec.analyze_rademacher:main"
+lm-codec-analyze-spectral = "lm_codec.analyze_spectral:main"
+lm-codec-analyze-spectral-analysis = "lm_codec.analyze_spectral_analysis:main"
+lm-codec-analyze-time-complexity = "lm_codec.analyze_time_complexity:main"
+lm-codec-analyze-zip = "lm_codec.analyze_zip:main"
+lm-codec-analyze-zstd = "lm_codec.analyze_zstd:main"
+lm-codec-prepare-openwebtext = "lm_codec.prepare_openwebtext:main"
+lm-codec-evaluate = "lm_codec.evaluate:main"
+lm-codec-analyze-rate-distortion = "lm_codec.analyze_rate_distortion:main"
+lm-codec-plot = "lm_codec.plot:main"
+lm-codec-image-train = "image_codec.train:main"
+lm-codec-image-analyze-rademacher = "image_codec.analyze_rademacher:main"
+lm-codec-image-analyze-spectral = "image_codec.analyze_spectral:main"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "private"
+url = "https://pypi.org/simple/"
+publish-url = "https://upload.pypi.org/legacy/"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+unsafe-fixes = true
+fix = true
+exclude = ["deepeval", "litgpt", "torch_ans"]
+
+[tool.ruff.lint]
+preview = true
+
+[tool.ruff.format]
+preview = true
+quote-style = "single"
+
+[tool.basedpyright]
+typeCheckingMode = "basic"
+exclude = [
+  "**/node_modules",
+  "**/__pycache__",
+  "**/.*",
+  "deepeval",
+  "litgpt",
+  "torch_ans",
+]
+
+[tool.isort]
+line_length = 120
+multi_line_output = 9

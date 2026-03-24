@@ -1,0 +1,57 @@
+#!/bin/bash
+
+COMMAND="$(git-project) && bash -i"
+
+SCRIPT=$(
+  cat <<-EOM
+export JOB_NAME="shell-\${RANDOM}";
+
+cd ~/scratch;
+
+module load apptainer;
+
+mkdir -p "/scratch/\${USER}/data";
+mkdir -p "\${TMPDIR}/\${JOB_NAME}/data";
+mkdir -p "\${TMPDIR}/\${JOB_NAME}/apptainer/"{tmp,workdir,home};
+
+export APPTAINER_DOCKER_USERNAME="${DOCKER_USERNAME}";
+export APPTAINER_DOCKER_PASSWORD="${DOCKER_PASSWORD}";
+export APPTAINER_CACHEDIR="/scratch/\${USER}/apptainer";
+export APPTAINER_TMPDIR="\${TMPDIR}/\${JOB_NAME}/apptainer/tmp";
+
+source ~/.bash_profile;
+genv activate --gpus 1;
+
+apptainer
+  exec
+  --contain
+  --cleanenv
+  --nv
+  --workdir "\${TMPDIR}/\${JOB_NAME}/apptainer/workdir"
+  --home "\${TMPDIR}/\${JOB_NAME}/apptainer/home"
+  --bind "/scratch/\${USER}/data":/data-remote
+  --bind "\${TMPDIR}/\${JOB_NAME}/data":/data-local
+  --bind /bin/nvidia-smi:/bin/nvidia-smi
+  --env MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI}"
+  --env MLFLOW_TRACKING_USERNAME="${MLFLOW_TRACKING_USERNAME}"
+  --env MLFLOW_TRACKING_PASSWORD="${MLFLOW_TRACKING_PASSWORD}"
+  --env MLFLOW_S3_ENDPOINT_URL="${MLFLOW_S3_ENDPOINT_URL}"
+  --env S3_ENDPOINT_URL="${S3_ENDPOINT_URL}"
+  --env AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+  --env AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+  --env DATA_PATH="/data-remote"
+  --env DATA_EPHEMERAL_PATH="/data-local"
+  --env SLACK_URL="${SLACK_URL}"
+  --env SLACK_USER="${SLACK_USER}"
+  --env DEVELOPMENT_MODE="1"
+  --env CUDA_VISIBLE_DEVICES="\${CUDA_VISIBLE_DEVICES}"
+  "docker://${TRAINING_IMAGE}"
+  bash -c "${COMMAND}";
+
+genv deactivate;
+
+rm -rf "\${TMPDIR}/\${JOB_NAME}"
+EOM
+)
+
+ssh -t "${1}" ${SCRIPT}

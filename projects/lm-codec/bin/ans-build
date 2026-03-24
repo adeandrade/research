@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+FORCE_CUDA=1
+(cd torch_ans && uv run python -m build . --no-isolation)
